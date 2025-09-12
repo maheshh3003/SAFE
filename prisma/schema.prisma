@@ -1,0 +1,198 @@
+// Prisma Schema for SAFE Mental Health Platform with University Support
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Universities
+model University {
+  id                   String   @id @default(cuid())
+  name                 String
+  domain               String   @unique // email domain (e.g., university.edu)
+  address              String
+  contactEmail         String
+  contactPhone         String?
+  adminUserId          String?  // Reference to Supabase auth user
+  adminName            String
+  adminTitle           String?
+  subscriptionStatus   String   @default("active") // active, suspended, cancelled
+  studentLimit         Int      @default(1000)
+  currentStudentCount  Int      @default(0)
+  settings             Json     @default("{}")
+  isVerified           Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  students             Profile[] @relation("UniversityStudents")
+  
+  @@map("universities")
+}
+
+// User Profiles (extends Supabase auth.users)
+model Profile {
+  id                       String    @id // Same as Supabase auth.users.id
+  email                    String    @unique
+  fullName                 String?
+  phone                    String?
+  dateOfBirth              DateTime?
+  gender                   String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  medicalHistory           String?
+  currentMedications       String?
+  preferredTherapistGender String?
+  sessionPreferences       String?
+  userType                 String    @default("student") // student, university_admin, super_admin
+  universityId             String?
+  studentId                String?   // University-specific student ID
+  program                  String?   // Academic program/major
+  academicYear             String?   // Freshman, Sophomore, etc.
+  wellnessScore            Float     @default(0.0)
+  riskLevel                String    @default("low") // low, medium, high, critical
+  lastWellnessCheck        DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  // Relations
+  university               University? @relation("UniversityStudents", fields: [universityId], references: [id])
+  bookings                 Booking[]
+  reviews                  Review[]
+  chatMessages             ChatMessage[]
+  
+  @@map("profiles")
+}
+
+// Rest of the existing models...
+model Therapist {
+  id                  String   @id @default(cuid())
+  fullName            String
+  email               String   @unique
+  phone               String?
+  specialization      String[]
+  experienceYears     Int
+  education           String
+  licenseNumber       String   @unique
+  bio                 String?
+  profileImageUrl     String?
+  gender              String?
+  languages           String[] @default(["English"])
+  rating              Float    @default(0.0)
+  totalReviews        Int      @default(0)
+  consultationFee     Float
+  availableDays       String[]
+  availableTimeStart  String
+  availableTimeEnd    String
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  timeSlots           TimeSlot[]
+  bookings            Booking[]
+  reviews             Review[]
+  
+  @@map("therapists")
+}
+
+model SessionType {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  durationMinutes Int
+  price           Float
+  isOnline        Boolean  @default(true)
+  isOffline       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  // Relations
+  bookings        Booking[]
+  
+  @@map("session_types")
+}
+
+model TimeSlot {
+  id           String    @id @default(cuid())
+  therapistId  String
+  date         DateTime
+  startTime    String
+  endTime      String
+  isAvailable  Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  therapist    Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+  
+  @@unique([therapistId, date, startTime])
+  @@map("time_slots")
+}
+
+model Booking {
+  id               String   @id @default(cuid())
+  userId           String
+  therapistId      String
+  sessionTypeId    String
+  timeSlotId       String
+  bookingDate      DateTime @default(now())
+  sessionDate      DateTime
+  sessionTime      String
+  sessionType      String   // online, offline
+  status           String   @default("confirmed") // confirmed, cancelled, completed, no_show
+  totalAmount      Float
+  paymentStatus    String   @default("pending") // pending, paid, refunded
+  notes            String?
+  cancellationReason String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  user             Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  therapist        Therapist   @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  sessionTypeModel SessionType @relation(fields: [sessionTypeId], references: [id], onDelete: Cascade)
+  timeSlot         TimeSlot    @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+  reviews          Review[]
+  chatMessages     ChatMessage[]
+  
+  @@map("bookings")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  bookingId   String
+  userId      String
+  therapistId String
+  rating      Int      // 1-5
+  reviewText  String?
+  isAnonymous Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user        Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  therapist   Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  
+  @@map("reviews")
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  bookingId   String
+  senderId    String
+  messageText String
+  messageType String   @default("text") // text, image, file
+  fileUrl     String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  sender      Profile  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@map("chat_messages")
+}

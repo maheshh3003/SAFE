@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { 
   UserGroupIcon, 
@@ -14,10 +14,15 @@ import {
   ChatBubbleOvalLeftIcon,
   ShieldCheckIcon,
   EyeSlashIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  TrashIcon,
+  EllipsisVerticalIcon
 } from '@heroicons/react/24/outline'
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid'
 import Navigation from '@/components/Navigation'
+import AddPostModal from '@/components/AddPostModal'
+import DeleteConfirmationModal from '@/components/DeleteConfirmationModal'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Post {
   id: string
@@ -34,64 +39,28 @@ interface Post {
   tags: string[]
 }
 
-const posts: Post[] = [
-  {
-    id: '1',
-    title: 'Starting therapy for the first time',
-    content: 'I\'ve been thinking about starting therapy but I\'m nervous about the process. Has anyone here had a positive first experience they could share? What should I expect?',
-    author: 'Anonymous',
-    authorInitials: 'A',
-    category: 'Therapy',
-    timestamp: '2 hours ago',
-    likes: 12,
-    replies: 8,
-    isLiked: false,
-    isAnonymous: true,
-    tags: ['first-time', 'therapy', 'anxiety']
-  },
-  {
-    id: '2',
-    title: 'Mindfulness practice helped me today',
-    content: 'Had a really tough morning but took 10 minutes to do some breathing exercises. Amazing how much it helped center me. Sharing some hope for anyone having a difficult day.',
-    author: 'Sarah M.',
-    authorInitials: 'SM',
-    category: 'Mindfulness',
-    timestamp: '4 hours ago',
-    likes: 24,
-    replies: 6,
-    isLiked: true,
-    isAnonymous: false,
-    tags: ['mindfulness', 'success', 'breathing']
-  },
-  {
-    id: '3',
-    title: 'Supporting a friend through depression',
-    content: 'My close friend has been struggling with depression and I want to be there for them. What are some ways I can offer support without overstepping boundaries?',
-    author: 'Anonymous',
-    authorInitials: 'A',
-    category: 'Support',
-    timestamp: '6 hours ago',
-    likes: 18,
-    replies: 12,
-    isLiked: false,
-    isAnonymous: true,
-    tags: ['friendship', 'depression', 'support']
-  },
-  {
-    id: '4',
-    title: 'Celebrating small wins',
-    content: 'Got out of bed, took a shower, and made breakfast this morning. Might seem small but it\'s been hard lately. Celebrating the little victories!',
-    author: 'Alex R.',
-    authorInitials: 'AR',
-    category: 'Progress',
-    timestamp: '1 day ago',
-    likes: 45,
-    replies: 15,
-    isLiked: true,
-    isAnonymous: false,
-    tags: ['progress', 'self-care', 'victory']
-  }
-]
+interface Post {
+  id: string
+  title: string
+  content: string
+  author: string
+  authorInitials: string
+  category: string
+  timestamp: string
+  likes: number
+  replies: number
+  isLiked: boolean
+  isAnonymous: boolean
+  tags: string[]
+}
+
+interface CommunityStats {
+  totalPosts: number
+  totalLikes: number
+  totalReplies: number
+  activeMembers: number
+  onlineNow: number
+}
 
 const categories = ['All', 'Therapy', 'Mindfulness', 'Support', 'Progress', 'Anxiety', 'Depression']
 
@@ -104,10 +73,182 @@ const communityGuidelines = [
 ]
 
 export default function CommunityPage() {
+  const { user } = useAuth()
+  const [posts, setPosts] = useState<Post[]>([])
+  const [stats, setStats] = useState<CommunityStats>({
+    totalPosts: 0,
+    totalLikes: 0,
+    totalReplies: 0,
+    activeMembers: 0,
+    onlineNow: 0
+  })
+  const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
   const [showGuidelines, setShowGuidelines] = useState(false)
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set(['2', '4']))
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
+  const [showAddPostModal, setShowAddPostModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Fetch posts and stats from API
+  useEffect(() => {
+    fetchPosts()
+  }, [])
+
+  const fetchPosts = async () => {
+    try {
+      const response = await fetch('/api/posts')
+      if (!response.ok) {
+        throw new Error('Failed to fetch posts')
+      }
+      const data = await response.json()
+      setPosts(data.posts || [])
+      setStats(data.stats || {
+        totalPosts: 0,
+        totalLikes: 0,
+        totalReplies: 0,
+        activeMembers: 0,
+        onlineNow: 0
+      })
+      
+      // Initialize liked posts from the posts data
+      const initialLikedPosts = new Set<string>(
+        data.posts?.filter((post: Post) => post.isLiked).map((post: Post) => post.id) || []
+      )
+      setLikedPosts(initialLikedPosts)
+    } catch (error) {
+      console.error('Error fetching posts:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLike = async (postId: string) => {
+    const isCurrentlyLiked = likedPosts.has(postId)
+    const newLikedPosts = new Set(likedPosts)
+    
+    if (isCurrentlyLiked) {
+      newLikedPosts.delete(postId)
+    } else {
+      newLikedPosts.add(postId)
+    }
+    
+    // Optimistically update UI
+    setLikedPosts(newLikedPosts)
+    
+    // Update posts state to reflect like change
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              likes: isCurrentlyLiked ? Math.max(0, post.likes - 1) : post.likes + 1 
+            }
+          : post
+      )
+    )
+
+    try {
+      const response = await fetch(`/api/posts?id=${postId}&action=${isCurrentlyLiked ? 'unlike' : 'like'}`, {
+        method: 'PATCH'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update like')
+      }
+
+      const data = await response.json()
+      
+      // Update with server response
+      setPosts(prevPosts => 
+        prevPosts.map(post => 
+          post.id === postId ? data.post : post
+        )
+      )
+      setStats(data.stats)
+    } catch (error) {
+      console.error('Error updating like:', error)
+      
+      // Revert optimistic update on error
+      setLikedPosts(likedPosts)
+      setPosts(prevPosts => 
+        prevPosts.map(post => 
+          post.id === postId 
+            ? { 
+                ...post, 
+                likes: isCurrentlyLiked ? post.likes + 1 : Math.max(0, post.likes - 1)
+              }
+            : post
+        )
+      )
+    }
+  }
+
+  const handlePostCreated = (newPost: Post, newStats: CommunityStats) => {
+    // Add new post to the beginning of the array
+    setPosts(prevPosts => [newPost, ...prevPosts])
+    setStats(newStats)
+    setShowAddPostModal(false)
+  }
+
+  const handleDeletePost = (post: Post) => {
+    setPostToDelete(post)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeletePost = async () => {
+    if (!postToDelete) return
+
+    setIsDeleting(true)
+    
+    try {
+      const response = await fetch(`/api/posts?id=${postToDelete.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete post')
+      }
+
+      const data = await response.json()
+      
+      // Remove post from state
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postToDelete.id))
+      setStats(data.stats)
+      
+      // Close modal and reset state
+      setShowDeleteModal(false)
+      setPostToDelete(null)
+    } catch (error) {
+      console.error('Error deleting post:', error)
+      // You could add error toast/notification here
+      alert('Failed to delete post. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const cancelDeletePost = () => {
+    if (!isDeleting) {
+      setShowDeleteModal(false)
+      setPostToDelete(null)
+    }
+  }
+
+  // Helper function to check if current user can delete a post
+  const canDeletePost = (post: Post): boolean => {
+    if (!user) return false
+    
+    // If post is anonymous, allow deletion (for demo purposes)
+    if (post.isAnonymous) return true
+    
+    // Check if current user is the author
+    const currentUserName = user.user_metadata?.full_name || user.email
+    return post.author === currentUserName || post.author === user.email
+  }
 
   const filteredPosts = posts.filter(post => {
     const matchesCategory = selectedCategory === 'All' || post.category === selectedCategory
@@ -117,14 +258,18 @@ export default function CommunityPage() {
     return matchesCategory && matchesSearch
   })
 
-  const handleLike = (postId: string) => {
-    const newLikedPosts = new Set(likedPosts)
-    if (likedPosts.has(postId)) {
-      newLikedPosts.delete(postId)
-    } else {
-      newLikedPosts.add(postId)
-    }
-    setLikedPosts(newLikedPosts)
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="pt-20 pb-12 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-sage-300 border-t-sage-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-sage-600">Loading community posts...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -157,10 +302,10 @@ export default function CommunityPage() {
           {/* Community Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[
-              { label: 'Active Members', value: '2,847', icon: UserGroupIcon },
-              { label: 'Support Posts', value: '1,256', icon: ChatBubbleLeftIcon },
-              { label: 'Helpful Responses', value: '8,934', icon: HeartIcon },
-              { label: 'Online Now', value: '142', icon: ClockIcon }
+              { label: 'Active Members', value: stats.activeMembers.toLocaleString(), icon: UserGroupIcon },
+              { label: 'Support Posts', value: stats.totalPosts.toLocaleString(), icon: ChatBubbleLeftIcon },
+              { label: 'Helpful Responses', value: stats.totalLikes.toLocaleString(), icon: HeartIcon },
+              { label: 'Online Now', value: stats.onlineNow.toLocaleString(), icon: ClockIcon }
             ].map((stat, index) => (
               <motion.div
                 key={stat.label}
@@ -185,6 +330,7 @@ export default function CommunityPage() {
             <div className="lg:col-span-1 space-y-6">
               {/* New Post Button */}
               <motion.button
+                onClick={() => setShowAddPostModal(true)}
                 className="w-full btn-primary flex items-center justify-center space-x-2"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -307,6 +453,19 @@ export default function CommunityPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Delete Button - Only visible to post author */}
+                      {canDeletePost(post) && (
+                        <motion.button
+                          onClick={() => handleDeletePost(post)}
+                          className="p-2 text-sage-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          title="Delete post"
+                        >
+                          <TrashIcon className="w-5 h-5" />
+                        </motion.button>
+                      )}
                     </div>
 
                     {/* Post Content */}
@@ -388,6 +547,22 @@ export default function CommunityPage() {
           </div>
         </div>
       </div>
+
+      {/* Add Post Modal */}
+      <AddPostModal
+        isOpen={showAddPostModal}
+        onClose={() => setShowAddPostModal(false)}
+        onPostCreated={handlePostCreated}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={cancelDeletePost}
+        onConfirm={confirmDeletePost}
+        postTitle={postToDelete?.title || ''}
+        isDeleting={isDeleting}
+      />
     </div>
   )
 }

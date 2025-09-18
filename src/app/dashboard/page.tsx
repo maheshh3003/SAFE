@@ -81,11 +81,11 @@ export default function DashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-12"
           >
-            <div className="flex items-center justify-center mb-6">
+            {/* <div className="flex items-center justify-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-sage-400 to-sage-600 rounded-2xl flex items-center justify-center">
                 <UserIcon className="w-8 h-8 text-white" />
               </div>
-            </div>
+            </div> */}
             
             <h1 className="text-4xl font-plus-jakarta font-bold text-sage-800 mb-4">
               Welcome to your wellness space, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}!

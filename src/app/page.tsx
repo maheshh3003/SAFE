@@ -14,9 +14,11 @@ export default function HomePage() {
 
   // Redirect university admins to admin panel, show landing page for regular users
   useEffect(() => {
+    // Auto-redirect university admins (they can always navigate back if needed)
     if (!loading && user && !redirecting && isUniversityAdmin) {
       setRedirecting(true)
       console.log('Redirecting university admin to admin panel')
+      console.log('User metadata:', user.user_metadata)
       router.push('/university-admin')
     }
   }, [user, loading, router, redirecting, isUniversityAdmin])

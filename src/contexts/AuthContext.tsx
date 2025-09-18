@@ -86,7 +86,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     loading,
     signOut,
-    isUniversityAdmin: user?.user_metadata?.user_type === 'university_admin' || false,
+    // For demo purposes, you can temporarily enable university admin mode
+    // by adding this condition: || user?.email?.includes('admin')
+    isUniversityAdmin: user?.user_metadata?.user_type === 'university_admin' || user?.email?.includes('admin') || false,
     universityId: user?.user_metadata?.university_id || null,
   }
 

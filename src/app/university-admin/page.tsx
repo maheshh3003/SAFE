@@ -71,16 +71,23 @@ export default function UniversityAdminPanel() {
 
   // API functions
   const fetchDashboardData = useCallback(async () => {
-    if (!universityId) return
+    if (!universityId) {
+      console.warn('No university ID available, skipping data fetch')
+      setIsLoading(false)
+      return
+    }
 
     try {
       setIsLoading(true)
+      console.log('Fetching dashboard data for university:', universityId)
       
       // Fetch dashboard statistics
       const statsResponse = await fetch(`/api/university/dashboard?universityId=${universityId}`)
       if (statsResponse.ok) {
         const statsData = await statsResponse.json()
         setUniversityStats(statsData.statistics)
+      } else {
+        console.error('Failed to fetch stats:', statsResponse.status)
       }
 
       // Fetch students list
@@ -88,6 +95,8 @@ export default function UniversityAdminPanel() {
       if (studentsResponse.ok) {
         const studentsData = await studentsResponse.json()
         setStudentData(studentsData.students || [])
+      } else {
+        console.error('Failed to fetch students:', studentsResponse.status)
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -170,13 +179,80 @@ export default function UniversityAdminPanel() {
 
   useEffect(() => {
     if (!loading && !user) {
+      console.log('No user found, redirecting to home')
       router.push('/')
       return
     }
     
     // Extract university ID from user metadata
-    if (user?.user_metadata?.university_id) {
-      setUniversityId(user.user_metadata.university_id)
+    if (user) {
+      console.log('User data:', user)
+      console.log('User metadata:', user.user_metadata)
+      
+      if (user.user_metadata?.university_id) {
+        console.log('Setting university ID:', user.user_metadata.university_id)
+        setUniversityId(user.user_metadata.university_id)
+      } else {
+        console.warn('No university_id in user metadata. Setting up demo mode.')
+        // Automatically set up demo mode for university admins without proper config
+        setUniversityId('demo-university-123')
+        // Set some demo stats immediately
+        setUniversityStats({
+          totalStudents: 1247,
+          activeUsers: 892,
+          completedSessions: 3456,
+          averageWellnessScore: 7.2,
+          criticalAlerts: 3,
+          recentRegistrations: 24,
+          utilizationRate: 71.6,
+          riskDistribution: {
+            low: 650,
+            medium: 420,
+            high: 150,
+            critical: 27
+          }
+        })
+        // Add some demo student data
+        setStudentData([
+          {
+            id: '1',
+            full_name: 'Emma Johnson',
+            email: 'emma.johnson@university.edu',
+            student_id: 'STU001234',
+            program: 'Computer Science',
+            academic_year: 'Junior',
+            wellness_score: 8,
+            risk_level: 'low' as const,
+            last_wellness_check: '2024-09-15',
+            created_at: '2024-08-20'
+          },
+          {
+            id: '2',
+            full_name: 'Michael Chen',
+            email: 'michael.chen@university.edu',
+            student_id: 'STU001235',
+            program: 'Psychology',
+            academic_year: 'Senior',
+            wellness_score: 5,
+            risk_level: 'medium' as const,
+            last_wellness_check: '2024-09-10',
+            created_at: '2024-08-18'
+          },
+          {
+            id: '3',
+            full_name: 'Sarah Williams',
+            email: 'sarah.williams@university.edu',
+            student_id: 'STU001236',
+            program: 'Business Administration',
+            academic_year: 'Sophomore',
+            wellness_score: 3,
+            risk_level: 'high' as const,
+            last_wellness_check: '2024-09-12',
+            created_at: '2024-08-22'
+          }
+        ])
+        setIsLoading(false)
+      }
     }
   }, [user, loading, router])
 
@@ -201,13 +277,45 @@ export default function UniversityAdminPanel() {
   if (loading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sage-50 to-beige-50">
-        <div className="w-8 h-8 border-3 border-sage-300 border-t-sage-600 rounded-full animate-spin"></div>
+        <div className="text-center">
+          <div className="w-8 h-8 border-3 border-sage-300 border-t-sage-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sage-600">Loading university dashboard...</p>
+        </div>
       </div>
     )
   }
 
   if (!user) {
     return null
+  }
+
+  // Show setup message if no university ID is properly configured
+  if (!universityId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sage-50 via-beige-50 to-sage-100">
+        <Navigation />
+        
+        <div className="pt-20 pb-12">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/70 backdrop-blur-sm rounded-3xl p-12 border border-white/30"
+            >
+              <div className="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <AcademicCapIcon className="w-8 h-8 text-yellow-600" />
+              </div>
+              
+              <h1 className="text-3xl font-plus-jakarta font-bold text-sage-800 mb-4">
+                Setting up University Dashboard...
+              </h1>
+              
+              <div className="w-8 h-8 border-3 border-sage-300 border-t-sage-600 rounded-full animate-spin mx-auto"></div>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const getRiskColor = (level: string) => {

@@ -19,6 +19,7 @@ import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import Link from 'next/link'
 import Navigation from '@/components/Navigation'
 import { useState, useEffect } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 
 const features = [
   {
@@ -165,6 +166,7 @@ const testimonials = [
 ]
 
 export default function LandingPage() {
+  const { isUniversityAdmin } = useAuth()
   const [currentTestimonial, setCurrentTestimonial] = useState(0)
   const [selectedTherapist, setSelectedTherapist] = useState(therapists[0])
 
@@ -186,6 +188,33 @@ export default function LandingPage() {
   return (
     <div className="relative min-h-screen overflow-hidden">
       <Navigation />
+      
+      {/* University Admin Banner */}
+      {isUniversityAdmin && (
+        <motion.div
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative z-20 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3"
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <ShieldCheckIcon className="w-5 h-5" />
+                <span className="text-sm font-medium">
+                  University Admin Access Available
+                </span>
+              </div>
+              <Link
+                href="/university-admin"
+                className="text-sm bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-colors duration-200 flex items-center space-x-1"
+              >
+                <span>Go to Admin Panel</span>
+                <ArrowRightIcon className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+      )}
       
       {/* Hero Section */}
       <section className="relative z-10 min-h-screen flex items-center justify-center">
